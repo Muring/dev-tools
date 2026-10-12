@@ -423,3 +423,21 @@ test('Orca Codex shutdown guidance and independent retry', async ({ page }) => {
   await card.getByRole('button', { name: 'Codex 실행 설정 적용·확인' }).click();
   expect(await page.evaluate(() => (window as any).lastRunTarget)).toBe('orca-codex');
 });
+
+test('dev-tools brand stays on one line at the minimum window size', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 900, height: 650 });
+  await expect(page).toHaveTitle('dev-tools');
+  const brand = page.locator('.brand');
+  await expect(brand).toHaveText('↗ dev-tools');
+  const size = await brand.evaluate(element => {
+    return {
+      whiteSpace: getComputedStyle(element).whiteSpace,
+      fits: element.scrollWidth <= element.clientWidth,
+      height: element.getBoundingClientRect().height,
+    };
+  });
+  expect(size.whiteSpace).toBe('nowrap');
+  expect(size.fits).toBe(true);
+  expect(size.height).toBeLessThan(45);
+  await page.screenshot({ path: testInfo.outputPath('dev-tools-preview.png'), fullPage: true });
+});

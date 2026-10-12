@@ -8,7 +8,7 @@
 param(
   [string]$User   = $env:USERNAME.ToLower(),
   [string]$Distro = 'Ubuntu',
-  [string]$Repo   = 'https://github.com/Muring/muring-dev-setup.git',
+  [string]$Repo   = 'https://github.com/Muring/dev-tools.git',
   [ValidatePattern('^[A-Za-z]:?$')][string]$InstallDrive,
   [string]$InstallLocation,
   [string]$ConfigFile

@@ -9,8 +9,8 @@ const assert = require('node:assert/strict');
     .pages()
     .find(p => p.url().startsWith('file:'));
   assert(page, 'App page missing');
-  assert.equal(await page.title(), 'MuRing Dev Setup');
-  await page.getByText('MuRing · 설치 마법사 0.1.14', { exact: true }).waitFor();
+  assert.equal(await page.title(), 'dev-tools');
+  await page.getByText('MuRing · 설치 마법사 0.1.15', { exact: true }).waitFor();
   const errors = [];
   page.on('pageerror', error => errors.push(String(error)));
   await page.getByRole('heading', { name: '환경 확인', exact: true }).waitFor();

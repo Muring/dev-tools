@@ -24,7 +24,7 @@ def fixture(source, commit):
                 sha=blob_hash(data);blobs[sha]=data
                 tree.append(dict(path=str(path.relative_to(source)),mode='120000' if path.is_symlink() else '100644',type='blob',sha=sha,size=len(data)))
     files,commands,skills=inventory(dict(tree=tree,truncated=False))
-    return dict(version=1,repository='Muring/muring-dev-setup',commit=commit,message='fixture',date='2026-09-17',files=files,commands=commands,skills=skills),blobs
+    return dict(version=1,repository='Muring/dev-tools',commit=commit,message='fixture',date='2026-09-17',files=files,commands=commands,skills=skills),blobs
 
 
 class Client:

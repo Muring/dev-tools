@@ -13,7 +13,7 @@ import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-REPO = 'Muring/muring-dev-setup'
+REPO = 'Muring/dev-tools'
 GROUPS = ('claude-skill', 'claude-commands', 'codex-skills')
 SHA = re.compile(r'^[0-9a-f]{40}$')
 NAME = re.compile(r'^[a-z0-9][a-z0-9-]*$')

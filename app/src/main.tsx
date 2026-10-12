@@ -301,7 +301,7 @@ function App() {
     <div className="layout">
       <aside>
         <div className="brand">
-          <span className="brand-icon">↗</span> MuRing Dev Setup
+          <span className="brand-icon">↗</span> dev-tools
         </div>
         <p className="aside-caption">새 PC, 익숙한 개발환경.</p>
         <nav>
@@ -320,7 +320,7 @@ function App() {
         <div className="aside-bottom">
           WINDOWS + UBUNTU
           <br />
-          <small>MuRing · 설치 마법사 0.1.14</small>
+          <small>MuRing · 설치 마법사 0.1.15</small>
         </div>
       </aside>
       <main>

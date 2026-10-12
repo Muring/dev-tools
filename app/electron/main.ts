@@ -625,7 +625,7 @@ async function main() {
   await window.loadFile(path.join(__dirname, '../dist/index.html'));
 }
 void main().catch(error => {
-  dialog.showErrorBox('MuRing Dev Setup', String(error));
+  dialog.showErrorBox('dev-tools', String(error));
   app.quit();
 });
 app.on('window-all-closed', () => {

@@ -1,4 +1,32 @@
-# MuRing Dev Setup 개명 전환
+# dev-tools 개명 전환
+
+## 2026-10-12 전환
+
+앱 표시명과 GitHub 저장소 이름을 `dev-tools`로 변경했습니다. 새 빌드의 파일명은
+`dev-tools-<버전>-x64.exe`이며 좌측 상단 브랜드는 한 줄로 표시합니다.
+저장소 주소는 `Muring/dev-tools`, 콘텐츠/설치 스크립트의 원본 URL도 같은 저장소를 사용합니다.
+
+기존 설정·백업·잠금·스킬 연결을 보존하기 위해 로컬 `~/dev/dev-bootstrap` 폴더,
+Electron appId/npm 내부 이름, Windows/Linux 설치·상태 경로는 유지합니다.
+`MuRingDevSetup` 이름을 사용하는 Orca 자동 패치 상태 폴더도 이동하지 않습니다.
+이전 EXE·릴리스 태그는 그대로 두고 README 다운로드는 공개된 파일만 가리킵니다.
+로컬 새 EXE 빌드와 GitHub 릴리스 게시·소스 commit/push는 별개입니다.
+
+전환 검증: GitHub 저장소 ID `1362029496` 유지, 이전 주소의 같은 저장소 리디렉션,
+새 origin의 main 조회와 기존 릴리스 자산 보존을 확인했습니다.
+앱 format 검사·단위 검사 15개·빌드·UI 검사 15개와 콘텐츠 업데이트 검사 10개가 통과했습니다.
+UI 검사는 900×650에서도 브랜드의 줄바꿈과 영역 넘침이 없음을 확인합니다.
+Chromium 실행에 필요한 라이브러리는 임시 경로에서 제공했으며 시스템 설치는 하지 않았습니다.
+패키지 내부 ASAR에서도 새 title·브랜드·nowrap 스타일을 확인했습니다.
+로컬 portable 빌드 `app/release/dev-tools-0.1.14-x64.exe`를 생성했고,
+별도 `dev-tools-0.1.14-x64.exe.sha256` 파일에 체크섬을 기록했습니다.
+개명 당시 Windows 실기 실행은 수행하지 않았습니다.
+후속 사용자 승인으로 0.1.15 릴리스와 소스 commit/push를 진행하며,
+배포 범위·검증은 [0.1.15 릴리스 노트](releases/v0.1.15.md)에 기록합니다.
+
+아래는 2026-09-18에 수행한 이전 개명 기록입니다.
+
+## 이전 MuRing Dev Setup 개명 전환
 
 GitHub 저장소를 `Muring/muring-dev-setup`으로 개명하고 로컬 origin 및 설치·콘텐츠 URL을 전환했습니다.
 앱 표시 이름·산출물 이름 변경과 URL 전환을 소스에 반영했습니다.

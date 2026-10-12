@@ -1,6 +1,6 @@
 {
   "name": "dev-bootstrap-wizard",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "private": true,
   "description": "Windows and Ubuntu development setup wizard",
   "author": "MuRing",
@@ -34,7 +34,7 @@
   },
   "build": {
     "appId": "dev.muring.bootstrap",
-    "productName": "MuRing Dev Setup",
+    "productName": "dev-tools",
     "directories": {
       "output": "release"
     },
@@ -58,7 +58,7 @@
       "target": "portable",
       "signAndEditExecutable": false
     },
-    "artifactName": "MuRingDevSetup-${version}-${arch}.${ext}",
+    "artifactName": "dev-tools-${version}-${arch}.${ext}",
     "compression": "normal"
   }
 }

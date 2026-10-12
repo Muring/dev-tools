@@ -53,6 +53,7 @@ aside {
   flex-direction: column;
 }
 .brand {
+  white-space: nowrap;
   font-size: 19px;
   font-weight: 650;
   letter-spacing: -0.5px;

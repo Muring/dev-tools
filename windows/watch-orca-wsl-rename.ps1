@@ -40,7 +40,7 @@ try {
       $icon.Icon = [System.Drawing.SystemIcons]::Warning
       $icon.Visible = $true
       $message = if ($status -eq 'patch-missing') {
-        "Orca $version WSL 이름 생성 패치가 없습니다. 자동 이름 변경이 실패할 수 있습니다. MuRing Dev Setup 패치를 다시 적용하세요."
+        "Orca $version WSL 이름 생성 패치가 없습니다. 자동 이름 변경이 실패할 수 있습니다. dev-tools 패치를 다시 적용하세요."
       } else {
         'Orca 설치 파일이 변경되었습니다. WSL 이름 생성 수정이 유지되는지 검증이 필요합니다. 새 버전을 확인한 후 패치를 적용하세요.'
       }
