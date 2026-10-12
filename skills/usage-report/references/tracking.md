@@ -31,7 +31,7 @@ python3 <scripts>/usage_tracker.py schedule --enable
 
 `approve`는 KB의 `archive/reports/usage/template-approval.json`에 기록만 남긴다. 해당 파일·코드·템플릿의 일반 브랜치 커밋은 별도 요청 범위다. 다른 기기도 검토된 동일 버전의 코드와 양식을 받아야 한다.
 
-`schedule`만 실행하면 파일을 준비하고 활성화하지 않는다. Linux/WSL은 사용자 systemd, Windows는 작업 스케줄러, macOS는 launchd가 15분마다 KST 실행 기한을 확인하고 하루 한 번 수집한다. 타이머는 꺼진 환경을 강제로 시작하지 않는다. Windows/macOS 등록은 해당 OS에서 별도 검증이 필요하다.
+`schedule`만 실행하면 파일을 준비하고 활성화하지 않는다. Linux/WSL은 사용자 systemd의 KST 09:00·시작 시 보충, Windows는 작업 스케줄러의 KST 09:00·로그온 트리거를 사용한다. macOS legacy만 15분 간격으로 기한을 확인하며, git-workflow는 Asia/Seoul 시스템 시간대의 09:00 calendar·RunAtLoad를 사용한다. 타이머는 꺼진 환경을 강제로 시작하지 않는다. Windows/macOS 등록은 해당 OS에서 별도 검증이 필요하다.
 
 일일 수집과 시작 시 누락 보충 후 승인된 HTML도 재생성한다. 따라서 월요일 보고 외에도 현재 주·늦게 도착한 자료가 갱신된다. 조회 연도 기본값은 현재 KST 연도다. 작년 주에 포함되는 1월 초 기록은 `--year <작년>`으로 확인한다. 생성 JSON/HTML은 무시된 `archive/reports/usage/generated/`에 있다.
 
@@ -85,12 +85,7 @@ KB CLI는 수집 설정이 해당 KB를 가리킬 때만 검색 방식·결과 �
 
 `usage_publish.py --worktree <usage-data checkout> --revision <전체 source SHA> --sequence <증가하는 작업 순번> --output <임시 JSON> --improvements <개선 기록 JSON>`은 기존 집계 함수를 호출해 블로그용 연도별 요약을 생성한다. 세션 키·원문 로그·명령 인수는 전송하지 않는다. 새 수집이나 AI 호출은 하지 않는다.
 
-`--send`는 명시적으로 연결한 HTTPS `AI_USAGE_INGEST_URL`과 비밀 환경변수 `AI_USAGE_INGEST_KEY`를 사용한다. private KB의 예약 workflow가 실행하며 일반 로컬 수집기에 자동 전송을 추가하지 않는다. schema/metrics 불일치·원본 무결성 오류는 게시하지 않고 종료한다. 예약 workflow와 배포 설정은 해당 KB·블로그 운영 문서를 따른다. 승인된 HTML 렌더러·양식은 변경하지 않는다.
-
-
-## Git 기반 일일 발행
-
-선택 `publisher.mode=git-workflow` 설정과 `publish-retry`/`publish-status`, exporter ACK·receipt 계약은 [Git 발행 안내](git-publish.md)를 따른다. sync 성공의 실제 revision을 main workflow에 연결하고 검증된 실행·receipt로 DB 결과를 확인한다. 기존 private task의 presentation/activity/knowledgeReviews는 검증 후 집계·전송하고 원본 및 공개 projection 경계를 보존한다. 기존 작업 기록의 직접 편집·생성 권한을 추가하지 않는다.
+`--send`는 명시적으로 연결한 HTTPS `AI_USAGE_INGEST_URL`과 비밀 환경변수 `AI_USAGE_INGEST_KEY`를 사용한다. private KB main workflow가 실행하며 [Git 기반 일일 발행](git-publish.md)의 opt-in 설정은 sync 성공 직후 그 workflow를 호출한다. 로컬에서 직접 DB 원본을 전송하지 않는다. `--receipt <새 경로>`는 strict ACK 확인 후 applied/already_applied/superseded 근거만 저장한다. schema/metrics 불일치·원본 무결성·전역 identity 충돌·구형 ACK는 게시 완료로 처리하지 않는다. 기존 예약은 복구용으로 유지하고 실제 설정 변경은 별도 승인 범위다. 승인된 HTML 렌더러·양식은 변경하지 않는다.
 
 
 ## 작업 표시 presentation
