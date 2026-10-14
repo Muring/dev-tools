@@ -131,6 +131,67 @@ class ReviewTests(unittest.TestCase):
             values.append(reviews.fingerprint(task['project'],task['id'],source))
         self.assertEqual(len(set(values)),3)
 
+    def test_uncollected_empty_decisions_requires_nonempty_knowledge(self):
+        known=[dict(document=self.task['activity']['knowledgeDecisions'][0]['document'],usage='applied',note=None)]
+        for mode in ('missing', 'null', 'empty', 'populated'):
+            for knowledge_value in (None, [], known):
+                with self.subTest(mode=mode, knowledge=knowledge_value):
+                    task=copy.deepcopy(self.task)
+                    if mode=='missing':task['activity'].pop('knowledgeDecisions')
+                    elif mode!='populated':task['activity']['knowledgeDecisions']=None if mode=='null' else []
+                    task['activity']['knowledge']=copy.deepcopy(knowledge_value)
+                    record=sample()['review'];record['source']=reviews.source_for(task)
+                    record['sourceDigest']=reviews.fingerprint(record['project'],record['taskId'],record['source'])
+                    record['result']['rows']=[dict(project=record['project'],task=record['taskId'],document=None,state='uncollected')]
+                    before=copy.deepcopy(record)
+                    allowed=mode in ('missing','null') or mode=='empty' and bool(knowledge_value)
+                    if allowed:self.assertEqual(reviews.validate(record),before)
+                    else:
+                        with self.assertRaises(ValueError):reviews.validate(record)
+                    self.assertEqual(record,before)
+
+    def test_empty_decision_gap_preserves_old_empty_result_and_source_digest(self):
+        task=copy.deepcopy(self.task);task['activity']['knowledgeDecisions']=[]
+        task['activity']['knowledge']=[dict(document=self.task['activity']['knowledgeDecisions'][0]['document'],usage='applied',note=None)]
+        self.assertTrue(task['activity']['knowledge'])
+        store.atomic(self.task_path,task)
+        old=sample()['review'];old['source']=reviews.source_for(task)
+        old['sourceDigest']=reviews.fingerprint(old['project'],old['taskId'],old['source'])
+        old['result']['rows']=[]
+        reviews.persist(self.cfg,old)
+        path=Path(self.cfg['worktree'])/'devices/test/knowledge-reviews'/(old['id']+'.json')
+        original=path.read_bytes();original_task=self.task_path.read_bytes()
+        new=copy.deepcopy(old);new.update(id='e'*32,reviewedAt='2026-10-03T00:00:00Z')
+        new['result']['rows']=[dict(project=new['project'],task=new['taskId'],document=None,state='uncollected')]
+        reviews.persist(self.cfg,new)
+        history=store.aggregate(self.cfg['worktree'])['tasks'][0]['knowledgeReviews']
+        self.assertEqual({r['id'] for r in history},{old['id'],new['id']})
+        self.assertEqual(path.read_bytes(),original)
+        self.assertEqual(self.task_path.read_bytes(),original_task)
+        self.assertEqual(new['sourceDigest'],old['sourceDigest'])
+        for knowledge_value in (None,[]):
+            empty=copy.deepcopy(old);empty['source']['knowledge']=knowledge_value
+            empty['sourceDigest']=reviews.fingerprint(empty['project'],empty['taskId'],empty['source'])
+            self.assertEqual(reviews.validate(empty),empty)
+
+    def test_finish_does_not_invent_missing_knowledge_decisions(self):
+        for mode in ('missing','null','empty'):
+            with self.subTest(mode=mode):
+                task=copy.deepcopy(self.task)
+                task['activity']['knowledge']=[dict(document=self.task['activity']['knowledgeDecisions'][0]['document'],usage='applied',note=None)]
+                if mode=='missing':task['activity'].pop('knowledgeDecisions')
+                else:task['activity']['knowledgeDecisions']=None if mode=='null' else []
+                store.atomic(self.task_path,task)
+                args=SimpleNamespace(id=task['id'],project=task['project'],tool='Claude',session_id=None,transcript=None,hook_input=None)
+                handle=tracker.start_task(self.cfg,args)['handle']
+                source=self.root/'result.json';store.atomic(source,task)
+                result=sample()['review']['result']
+                result['rows']=[dict(project=task['project'],task=task['id'],document=None,state='uncollected')]
+                with patch.object(tracker,'guard',return_value=Path(self.cfg['worktree'])),patch.object(knowledge,'review',return_value=result):
+                    ended=tracker.finish_task(self.cfg,handle,source)
+                self.assertEqual(ended['knowledgeReview'],result)
+                self.assertEqual(reviews.source_for(store.read(self.task_path)),reviews.source_for(task))
+
     def test_private_publisher_real_store_roundtrip_leaves_totals_unchanged(self):
         logs=self.root/'logs';logs.mkdir();self.cfg['roots']=[dict(tool='Codex',path=str(logs))]
         ts=store.now().isoformat()

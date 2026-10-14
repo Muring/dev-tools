@@ -77,7 +77,8 @@ def validate_result(result, project, task_id, source):
             exact(row, base)
             if len(rows) != 1 or state not in ('uncollected', 'task_conflict'):
                 raise ValueError('Invalid task-level review row')
-            if state == 'uncollected' and decisions is not None:
+            missing_decisions = decisions is None or (decisions == [] and bool(source['knowledge']))
+            if state == 'uncollected' and not missing_decisions:
                 raise ValueError('Collected decisions cannot be uncollected')
             return
         if not isinstance(document, str) or document not in by_document or document in seen:
