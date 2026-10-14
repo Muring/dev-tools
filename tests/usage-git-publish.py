@@ -149,6 +149,39 @@ class GitPublisherTests(unittest.TestCase):
         gp.daily(self.cfg,lambda:None,lambda:None,self.gh,retry_only=True)
         self.assertEqual(self.gh.sent[0][0],REV)
 
+    def test_preserved_warning_recovers_blocked_daily_without_erasing_warning(self):
+        marker=Path(self.cfg['state'])/'git-publish-daily.json'
+        store.atomic(marker,dict(collectedPeriod='2026-10-01',collectionBlocked=True))
+        collected=dict(state='attention',last_collection=dict(state='attention',issues=[dict(code='source_missing_preserved')]))
+        original=copy.deepcopy(collected)
+        result=gp.daily(self.cfg,lambda:collected,lambda:dict(state='ok',revision=REV),self.gh)
+        self.assertEqual(result['collection'],'collected')
+        self.assertFalse(store.read(marker)['collectionBlocked'])
+        self.assertEqual(len(self.gh.sent),1)
+        self.assertEqual(collected,original)
+        again=gp.daily(self.cfg,lambda:self.fail('collected twice'),lambda:dict(state='ok',revision=REV),self.gh)
+        self.assertEqual(again['collection'],'already_collected')
+
+    def test_blocking_and_unknown_issues_cannot_sync_even_with_preserved_warning(self):
+        for code in ('source_unstable_or_unreadable','request_conflict','invalid_usage','source_regression',
+                     'root_unavailable','source_scan_error','kb_event_unreadable','kb_application_unreadable','future_issue'):
+            with self.subTest(code=code):
+                collected=dict(state='attention',last_collection=dict(state='attention',issues=[dict(code='source_missing_preserved'),dict(code=code)]))
+                result=gp.daily(self.cfg,lambda:collected,lambda:self.fail('unsafe sync'),self.gh)
+                self.assertEqual(result['collection'],'failed')
+                self.assertTrue(store.read(Path(self.cfg['state'])/'git-publish-daily.json')['collectionBlocked'])
+                gp.daily(self.cfg,lambda:self.fail('retry collected'),lambda:self.fail('retry bypassed block'),self.gh,retry_only=True)
+        self.assertEqual(self.gh.sent,[])
+
+    def test_unexplained_attention_failed_and_malformed_quality_remain_blocked(self):
+        for collected in ({'state':'attention'}, {'state':'failed'},
+                          dict(state='attention',last_collection=dict(issues=[])),
+                          dict(state='ok',last_collection=dict(issues=[dict(code='request_conflict')])),
+                          dict(state='ok',sync_error='ValueError'),
+                          dict(state='attention',last_collection=dict(state='attention',issues=[None]))):
+            result=gp.daily(self.cfg,lambda:collected,lambda:self.fail('unsafe sync'),self.gh)
+            self.assertEqual(result['collection'],'failed')
+
     def test_queue_failure_preserves_successful_sync_and_retries_without_collect(self):
         collect_calls=[]
         def collect():collect_calls.append(1);return {'state':'ok'}

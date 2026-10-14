@@ -2,6 +2,21 @@
 
 2026-10-02 승인된 활성 경로는 하루 1회 수집 → 검증된 private `usage-data` sync → main workflow 호출 → aggregate DB 저장이다. Git은 원본·정확 중복 제거 근거를 보존한다. 원본 DB/서버 정정 확장은 운영 대상에서 제외하고 기존 코드를 보존한다.
 
+## 수집 경고와 발행 차단 복구
+
+`source_missing_preserved`만 있으면 보존된 데이터와 새로 수집한 데이터를 저장하고 일일 sync/발행을 진행한다. `run.json`의 `attention`, 기기 health와 HTML의 경고는 유지한다. 경고 표시와 발행 가능 여부는 별도 판단이다.
+
+`source_unstable_or_unreadable`은 읽기 실패·불완전 JSON·수집 중 변경을 포함하고 최신 데이터 보존을 보장하지 못하므로 차단한다. 충돌·무결성·원본 감소·필수 루트 접근 실패와 알 수 없는 issue도 차단한다. 보존 누락과 차단 issue가 섞이면 전체 발행을 보류한다.
+
+기존 `collectionBlocked` 복구 순서:
+
+1. `run.json`의 `last_collection.issues`를 확인한다. 읽기 오류가 남으면 원본을 보존한 상태에서 손상·진행 중 쓰기 여부와 정상 원본 복구 가능성을 먼저 확인한다. 캐시 삭제, 손상 줄 삭제, marker 수동 초기화로 검사를 우회하지 않는다.
+2. 전송이 승인된 뒤 `python3 <scripts>/usage_tracker.py run`으로 다시 수집한다. git-workflow 모드에서는 **`--sync`가 없어도 sync와 workflow 호출이 이어진다**. 수집이 허용되면 `collectionBlocked=false`와 현재 `collectedPeriod`를 자동 저장한다. 차단 issue가 남으면 계속 보류한다.
+3. `python3 <scripts>/usage_tracker.py publish-status`로 결과를 확인한다. 이후 sync 실패·진행 중 run/receipt 확인에는 승인 범위에서 `publish-retry`를 사용한다. 이 명령은 재수집하지 않으므로 기존 수집 차단 자체를 해제하지 못한다.
+4. `accepted`는 발행 완료가 아니다. 요청 revision과 run/receipt가 검증된 `applied`/`already_applied`를 확인하고 수신 DB 작업 수를 대조한다. `superseded`는 더 최신 결과가 적용된 상태다.
+
+`sync` 직접 호출은 재수집 검사를 대신하지 않으므로 수집 차단 복구의 우회 수단으로 쓰지 않는다. 로컬 내보내기 검사는 `usage_publish.py`를 `--send` 없이 별도 임시 output에 실행한다.
+
 ## 최소 설정과 명령
 
 기존 tracking.json에 아래 선택 설정을 추가하는 방식이다. 이 문서는 실제 설정·예약을 변경하지 않는다.

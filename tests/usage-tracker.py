@@ -69,6 +69,24 @@ class StoreTests(unittest.TestCase):
         archive=self.logs/'archived';archive.mkdir();source.rename(archive/'s.jsonl')
         snapshot,quality=store.scan(self.cfg)
         self.assertFalse(quality['issues']);self.assertEqual(len(snapshot['records']),1)
+
+    def test_missing_preserved_publishes_new_data_and_keeps_health_warning(self):
+        source=self.source();snapshot,quality=store.scan(self.cfg);store.publish(self.cfg,snapshot,quality)
+        source.unlink()
+        fresh=self.source(200)
+        rows=[json.loads(line) for line in fresh.read_text().splitlines()]
+        rows[0]['payload']['id']='new-session'
+        rows[2]['payload']['response_id']='new-response'
+        (self.logs/'new.jsonl').write_text('\n'.join(map(json.dumps,rows)))
+        fresh.unlink()
+        snapshot,quality=store.scan(self.cfg)
+        self.assertEqual(quality['state'],'attention')
+        self.assertTrue(all(i['code']=='source_missing_preserved' for i in quality['issues']))
+        self.assertTrue(store.publish(self.cfg,snapshot,quality))
+        report=store.aggregate(self.cfg['worktree'])
+        self.assertEqual(report['totals']['input'],300)
+        self.assertIn('collection_attention',[p['code'] for p in report['quality']['problems']])
+        self.assertEqual(store.read(Path(self.cfg['worktree'])/'devices/test/health.json'),quality)
     def test_partial_json_does_not_publish(self):
         path=self.source();path.write_text(path.read_text()+'\n{"partial"')
         s,q=store.scan(self.cfg);self.assertTrue(q['issues']);self.assertFalse(store.publish(self.cfg,s,q))

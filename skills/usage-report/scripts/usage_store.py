@@ -291,11 +291,18 @@ def scan(config):
         atomic(state / 'last-good.json', snapshot)
     return snapshot, quality
 
+def blocking_collection_issues(issues):
+    """Only a missing source with retained data is safe; unknown codes block."""
+    if not isinstance(issues, list) or any(not isinstance(issue, dict) for issue in issues):
+        raise ValueError('Invalid collection issues')
+    return [issue for issue in issues if issue.get('code') != 'source_missing_preserved']
+
+
 def publish(config, snapshot, quality):
     """One immutable generation pointer makes multi-file publication transactional."""
     base = Path(config['worktree']) / 'devices' / config['device']
     existing = read(base / 'manifest.json', {})
-    if quality['issues']:
+    if blocking_collection_issues(quality['issues']):
         atomic(base / 'health.json', quality)
         return False
     grouped = {}

@@ -13,7 +13,7 @@ import tempfile
 import uuid
 
 from usage_publish_common import due_period, durable_write
-from usage_store import now, read
+from usage_store import blocking_collection_issues, now, read
 from usage_publish import validate_ack
 
 WORKFLOW='publish-ai-usage.yml'
@@ -207,6 +207,16 @@ class Publisher:
         result=self.status();durable_write(self.root/'status.json',result);return result
 
 
+def collection_publishable(collected):
+    if collected.get('sync_error') or collected.get('state') not in ('ok','attention'):
+        return False
+    quality=collected.get('last_collection',{})
+    issues=quality.get('issues',[])
+    if blocking_collection_issues(issues):return False
+    # An unexplained attention state must never become permission to publish.
+    return collected['state']=='ok' or bool(issues) and quality.get('state')=='attention'
+
+
 def daily(config,collect,sync,github=None,retry_only=False):
     """Successful collection is marked independently of sync/dispatch failures."""
     publisher=Publisher(config,github);state=Path(config['state'])
@@ -216,7 +226,7 @@ def daily(config,collect,sync,github=None,retry_only=False):
         if marker.get('collectedPeriod')!=period:
             try:
                 collected=collect()
-                if collected.get('state')!='ok':raise ValueError('Collection needs attention; do not publish')
+                if not collection_publishable(collected):raise ValueError('Collection has blocking issues; do not publish')
                 marker.update(collectedPeriod=period,collectedAt=now().isoformat(),collectionBlocked=False)
                 durable_write(state/'git-publish-daily.json',marker);result['collection']='collected'
             except (OSError,ValueError,RuntimeError,subprocess.SubprocessError) as exc:

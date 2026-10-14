@@ -423,6 +423,8 @@ PowerShell 파일은 UTF-8 BOM, 셸 스크립트는 LF를 유지합니다.
 
 사용량의 지속 수집·양식 승인·정기 실행·작업 결과 기록은 [usage-report 추적 안내](skills/usage-report/references/tracking.md)를 따릅니다. 설치만으로 타이머가 활성화되지 않습니다. 선택 [Git 기반 일일 발행](skills/usage-report/references/git-publish.md)은 하루 1회 수집·usage-data sync 성공 후 main workflow를 호출하고 실행·DB receipt를 검증합니다. 원본은 private Git에 유지하고 DB에는 기존 집계만 전달합니다. 이전 원본 DB 경로는 운영 대상에서 제외하며 공개 projection은 유지합니다.
 
+이미 보존된 원본의 누락(`source_missing_preserved`)은 상태·HTML 경고를 유지하면서 집계 저장과 일일 발행을 허용합니다. 읽기 오류·충돌·무결성 문제는 계속 차단하며, 복구 절차는 위 Git 기반 일일 발행 안내를 따릅니다.
+
 프로젝트 매핑은 가장 구체적인 절대 경로부터 하위 폴더에 적용됩니다. `usage_tracker.py task-start`와 `task-finish`는 작업별 고유 핸들로 검증된 세션과 시작·종료 구간을 연결합니다. 작업 대상과 세션 출처 프로젝트를 구분하며 식별이나 경계가 불명확한 과거 사용량은 미상으로 유지합니다.
 
 `usage-report`의 `scripts/usage_publish.py`는 기존 집계를 블로그 대시보드로 내보냅니다. 전송은 `--send`와 별도 HTTPS 수집 API·비밀키가 설정된 환경에서만 실행하며, 로컬 수집 설치만으로 공개하지 않습니다. [연결 절차](skills/usage-report/references/tracking.md#블로그-집계-내보내기)를 참고하세요.
