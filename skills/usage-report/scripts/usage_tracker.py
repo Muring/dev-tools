@@ -220,6 +220,7 @@ def make_report(config, preview=False, year=None):
     directory = Path(config['reports'])
     report['year'] = year
     report['last_sync'] = read(Path(config['state']) / 'sync.json', {})
+    report['task_record_diagnostics'] = read(Path(config['state']) / 'task-record-diagnostics.json')
     atomic(directory / f'{year}.json', report)
     output = directory / (f'{year}-preview.html' if preview else f'{year}.html')
     usage_render.render(report, config['template'], output, approval(config), preview,
@@ -239,6 +240,8 @@ def run(config, do_sync=False):
         snapshot, quality = scan(config)
         quality['last_sync'] = read(state / 'sync.json', {})
         publish(config, snapshot, quality)
+        from usage_task_diagnostics import write_report
+        status['task_record_diagnostics'] = write_report(config, snapshot['records'], aggregate(config['worktree'])['tasks'], quality.get('attempt'))
         total_bytes = sum(p.stat().st_size for p in Path(config['worktree']).rglob('*.json'))
         status.update(last_collection=quality, data_bytes=total_bytes,
                       git_objects=git(config['worktree'], 'count-objects', '-v'))
@@ -260,6 +263,7 @@ def run(config, do_sync=False):
             report_path = make_report(config)
         else:
             report = aggregate(config['worktree'])
+            report['task_record_diagnostics'] = status['task_record_diagnostics']
             atomic(Path(config['reports']) / 'latest.json', report)
             status['html'] = 'pending_approval'
         status.update(state='attention' if quality['issues'] or status.get('sync_error') else 'ok', report=report_path)

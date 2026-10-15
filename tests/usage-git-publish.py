@@ -224,6 +224,17 @@ class GitPublisherTests(unittest.TestCase):
         with patch.object(sys,'argv',['tracker','--config',str(config),'publish-status']),patch('builtins.print'):
             self.assertEqual(tracker.main(),0)
 
+    def test_task_diagnostics_do_not_block_and_survive_daily_skip(self):
+        diagnostic=dict(state='observed',generatedAt=AT.isoformat(),missingTaskDates=[dict(project='demo',date='2026-10-01')])
+        store.atomic(Path(self.cfg['state'])/'run.json',dict(task_record_diagnostics=diagnostic))
+        collected=dict(state='ok',task_record_diagnostics=diagnostic)
+        first=gp.daily(self.cfg,lambda:collected,lambda:dict(state='ok',revision=REV),self.gh)
+        self.assertEqual(first['task_record_diagnostics'],diagnostic)
+        self.assertEqual(first['collection'],'collected')
+        second=gp.daily(self.cfg,lambda:self.fail('unnecessary collection'),lambda:dict(state='ok',revision=REV),self.gh)
+        self.assertEqual(second['task_record_diagnostics'],diagnostic)
+        self.assertEqual(second['collection'],'already_collected')
+
     def test_configuration_and_existing_guard_boundary_not_relaxed(self):
         gp.validate_remote('owner/repo','https://github.com/owner/repo.git')
         for remote in ('https://evil.test/owner/repo','https://secret@github.com/owner/repo','git@github.com:other/repo.git'):

@@ -226,6 +226,8 @@ def daily(config,collect,sync,github=None,retry_only=False):
         if marker.get('collectedPeriod')!=period:
             try:
                 collected=collect()
+                if 'task_record_diagnostics' in collected:
+                    result['task_record_diagnostics']=collected['task_record_diagnostics']
                 if not collection_publishable(collected):raise ValueError('Collection has blocking issues; do not publish')
                 marker.update(collectedPeriod=period,collectedAt=now().isoformat(),collectionBlocked=False)
                 durable_write(state/'git-publish-daily.json',marker);result['collection']='collected'
@@ -253,6 +255,12 @@ def daily(config,collect,sync,github=None,retry_only=False):
     if retry_only and not marker.get('collectedPeriod'):
         previous=read(state/'sync.json',{})
         if previous.get('state')=='ok' and previous.get('revision'):publisher.enqueue(previous['revision'])
+    if 'task_record_diagnostics' not in result:
+        try:
+            previous=read(state/'run.json',{}).get('task_record_diagnostics')
+            if previous is not None:result['task_record_diagnostics']=previous
+        except (OSError,ValueError,TypeError,AttributeError):
+            result['task_record_diagnostics']=dict(state='unavailable')
     result['publisher']=publisher.retry()
     durable_write(state/'git-publish-status.json',result)
     return result
