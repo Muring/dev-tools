@@ -4,7 +4,7 @@
 
 ## 수집 경고와 발행 차단 복구
 
-`source_missing_preserved`만 있으면 보존된 데이터와 새로 수집한 데이터를 저장하고 일일 sync/발행을 진행한다. `run.json`의 `attention`, 기기 health와 HTML의 경고는 유지한다. 경고 표시와 발행 가능 여부는 별도 판단이다.
+`source_missing_preserved`만 있으면 보존된 데이터와 새로 수집한 데이터를 저장하고 일일 sync/발행을 진행한다. 호환 manifest가 있는 기기의 해당 경고만으로는 aggregate의 일반 `collection_attention`을 만들지 않는다. `run.json`의 `attention`과 원본 기기 health·issues는 보존한다. 차단 issue가 섞이거나 health가 미상이면 경고를 유지하며, `stale_device`·무결성 오류 등 다른 problems는 제거하지 않는다. 이 표시 변경은 수정된 exporter가 집계를 생성할 때 적용되며, 원격 workflow가 고정한 이전 exporter에는 로컬 수정만으로 반영되지 않는다.
 
 `source_unstable_or_unreadable`은 읽기 실패·불완전 JSON·수집 중 변경을 포함하고 최신 데이터 보존을 보장하지 못하므로 차단한다. 충돌·무결성·원본 감소·필수 루트 접근 실패와 알 수 없는 issue도 차단한다. 보존 누락과 차단 issue가 섞이면 전체 발행을 보류한다.
 

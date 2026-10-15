@@ -423,7 +423,7 @@ PowerShell 파일은 UTF-8 BOM, 셸 스크립트는 LF를 유지합니다.
 
 사용량의 지속 수집·양식 승인·정기 실행·작업 결과 기록은 [usage-report 추적 안내](skills/usage-report/references/tracking.md)를 따릅니다. 설치만으로 타이머가 활성화되지 않습니다. 선택 [Git 기반 일일 발행](skills/usage-report/references/git-publish.md)은 하루 1회 수집·usage-data sync 성공 후 main workflow를 호출하고 실행·DB receipt를 검증합니다. 원본은 private Git에 유지하고 DB에는 기존 집계만 전달합니다. 이전 원본 DB 경로는 운영 대상에서 제외하며 공개 projection은 유지합니다.
 
-이미 보존된 원본의 누락(`source_missing_preserved`)은 상태·HTML 경고를 유지하면서 집계 저장과 일일 발행을 허용합니다. 읽기 오류·충돌·무결성 문제는 계속 차단하며, 복구 절차는 위 Git 기반 일일 발행 안내를 따릅니다.
+이미 보존된 원본의 누락(`source_missing_preserved`)만 있으면 집계 저장과 일일 발행을 허용하며 일반 집계 경고(`collection_attention`)에서 제외합니다. 원본 health 상태·issues는 보존합니다. 읽기 오류·충돌·무결성 문제는 계속 차단하고 미상 상태·오래된 기기 경고도 유지하며, 복구 절차는 위 Git 기반 일일 발행 안내를 따릅니다.
 
 일일 수집의 로컬 작업 기록 진단은 사용량은 있으나 수행일이 확인된 작업 기록이 없는 날짜·프로젝트와 미종료 작업을 표시합니다. 상태 폴더의 `task-record-diagnostics.txt`에서 확인하며, 날짜 미상·오늘 진행 중 항목은 따로 구분합니다. 진단은 기록을 자동 생성하거나 발행을 차단하지 않습니다.
 

@@ -85,8 +85,45 @@ class StoreTests(unittest.TestCase):
         self.assertTrue(store.publish(self.cfg,snapshot,quality))
         report=store.aggregate(self.cfg['worktree'])
         self.assertEqual(report['totals']['input'],300)
-        self.assertIn('collection_attention',[p['code'] for p in report['quality']['problems']])
+        self.assertNotIn('collection_attention',[p['code'] for p in report['quality']['problems']])
         self.assertEqual(store.read(Path(self.cfg['worktree'])/'devices/test/health.json'),quality)
+    def test_collection_attention_retains_blocking_and_unknown_health(self):
+        self.source();snapshot,quality=store.scan(self.cfg);store.publish(self.cfg,snapshot,quality)
+        base=Path(self.cfg['worktree'])/'devices/test'
+        preserved=dict(code='source_missing_preserved')
+        cases=[{},dict(state='unknown',issues=[preserved]),dict(state='attention',issues=[]),
+               dict(state='attention'),dict(state='attention',issues=None),
+               dict(state='attention',issues=['invalid'])]
+        for state in ('attention','observed'):
+            for code in ('source_unstable_or_unreadable','request_conflict','root_unavailable','future_unknown_issue'):
+                cases.append(dict(state=state,issues=[preserved,dict(code=code)]))
+        for health in cases:
+            with self.subTest(health=health):
+                store.atomic(base/'health.json',health)
+                self.assertIn('collection_attention',[p['code'] for p in store.aggregate(self.cfg['worktree'])['quality']['problems']])
+                self.assertEqual(store.read(base/'health.json'),health)
+        (base/'health.json').unlink()
+        self.assertIn('collection_attention',[p['code'] for p in store.aggregate(self.cfg['worktree'])['quality']['problems']])
+
+    def test_preserved_only_keeps_stale_integrity_and_missing_snapshot_problems(self):
+        self.source();snapshot,quality=store.scan(self.cfg);store.publish(self.cfg,snapshot,quality)
+        base=Path(self.cfg['worktree'])/'devices/test'
+        health=dict(state='attention',issues=[dict(code='source_missing_preserved')])
+        store.atomic(base/'health.json',health)
+        manifest=store.read(base/'manifest.json')
+        manifest['until']=(store.now()-timedelta(hours=49)).isoformat()
+        store.atomic(base/'manifest.json',manifest)
+        entry=next(iter(manifest['shards'].values()));(base/entry['path']).write_text('{}')
+        codes=[p['code'] for p in store.aggregate(self.cfg['worktree'])['quality']['problems']]
+        self.assertNotIn('collection_attention',codes)
+        self.assertIn('stale_device',codes);self.assertIn('shard_integrity',codes)
+        manifest['metrics']='unknown';store.atomic(base/'manifest.json',manifest)
+        codes=[p['code'] for p in store.aggregate(self.cfg['worktree'])['quality']['problems']]
+        self.assertIn('collection_attention',codes);self.assertIn('incompatible_metrics',codes)
+        (base/'manifest.json').unlink()
+        codes=[p['code'] for p in store.aggregate(self.cfg['worktree'])['quality']['problems']]
+        self.assertIn('collection_attention',codes);self.assertIn('no_successful_snapshot',codes)
+        self.assertEqual(store.read(base/'health.json'),health)
     def test_partial_json_does_not_publish(self):
         path=self.source();path.write_text(path.read_text()+'\n{"partial"')
         s,q=store.scan(self.cfg);self.assertTrue(q['issues']);self.assertFalse(store.publish(self.cfg,s,q))

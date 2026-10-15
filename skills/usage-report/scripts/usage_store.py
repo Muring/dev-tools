@@ -298,6 +298,22 @@ def blocking_collection_issues(issues):
     return [issue for issue in issues if issue.get('code') != 'source_missing_preserved']
 
 
+def collection_needs_attention(health, manifest):
+    """Preserved-only warnings are informational; unknown health stays visible."""
+    if not isinstance(health, dict):
+        return True
+    issues = health.get('issues', [])
+    try:
+        if blocking_collection_issues(issues):
+            return True
+    except ValueError:
+        return True
+    if health.get('state') == 'observed':
+        return False
+    return not (health.get('state') == 'attention' and issues and manifest
+                and manifest.get('schema') == SCHEMA and manifest.get('metrics') == METRICS)
+
+
 def publish(config, snapshot, quality):
     """One immutable generation pointer makes multi-file publication transactional."""
     base = Path(config['worktree']) / 'devices' / config['device']
@@ -342,7 +358,7 @@ def aggregate(worktree, year=None):
         manifest = read(base / 'manifest.json')
         health = read(base / 'health.json', {})
         devices.append(dict(device=base.name, until=manifest.get('until') if manifest else None, since=manifest.get('since') if manifest else None, health=health))
-        if health.get('state') != 'observed':
+        if collection_needs_attention(health, manifest):
             problems.append(dict(device=base.name, code='collection_attention'))
         if manifest and now() - legacy.stamp(manifest['until']) > timedelta(hours=48):
             problems.append(dict(device=base.name, code='stale_device'))
