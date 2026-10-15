@@ -204,6 +204,26 @@ class GitPublisherTests(unittest.TestCase):
             self.assertEqual(collected.call_count,1)
         self.assertEqual(len(self.gh.sent),1)
 
+    def test_cli_returns_nonzero_for_persisted_stage_failures(self):
+        config=self.root/'config.json';store.atomic(config,self.cfg)
+        for command in ('scheduled','run','publish-retry'):
+            for stage in ('collection','sync','queue'):
+                with self.subTest(command=command,stage=stage):
+                    result=dict(collection='not_run',sync='not_run',publisher=dict(pending=0))
+                    result[stage]='failed'
+                    with patch.object(sys,'argv',['tracker','--config',str(config),command]),patch.object(tracker,'guard',return_value=self.root),patch.object(tracker,'git',return_value='https://github.com/owner/repo.git'),patch.object(gp,'daily',return_value=result),patch('builtins.print') as output:
+                        self.assertEqual(tracker.main(),1)
+                        self.assertEqual(json.loads(output.call_args.args[0]),result)
+
+    def test_cli_keeps_pending_publish_and_status_query_successful(self):
+        config=self.root/'config.json';store.atomic(config,self.cfg)
+        result=dict(collection='collected',sync=dict(state='ok',revision=REV),publisher=dict(pending=1))
+        with patch.object(sys,'argv',['tracker','--config',str(config),'scheduled']),patch.object(tracker,'guard',return_value=self.root),patch.object(tracker,'git',return_value='https://github.com/owner/repo.git'),patch.object(gp,'daily',return_value=result),patch('builtins.print'):
+            self.assertEqual(tracker.main(),0)
+        store.atomic(Path(self.cfg['state'])/'git-publish-status.json',dict(collection='failed',sync='not_run'))
+        with patch.object(sys,'argv',['tracker','--config',str(config),'publish-status']),patch('builtins.print'):
+            self.assertEqual(tracker.main(),0)
+
     def test_configuration_and_existing_guard_boundary_not_relaxed(self):
         gp.validate_remote('owner/repo','https://github.com/owner/repo.git')
         for remote in ('https://evil.test/owner/repo','https://secret@github.com/owner/repo','git@github.com:other/repo.git'):

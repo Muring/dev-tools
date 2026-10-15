@@ -629,6 +629,11 @@ def main():
                 else:
                     result = scheduler(config, args.config, args.enable)
         print(json.dumps(result, ensure_ascii=False, indent=2))
+        # daily() persists failures as structured results instead of raising.
+        # Preserve that diagnostic output while letting schedulers detect failure.
+        if args.command in ('run', 'scheduled', 'publish-retry') and any(
+                result.get(stage) == 'failed' for stage in ('collection', 'sync', 'queue')):
+            return 1
     except (ValueError, RuntimeError, OSError, subprocess.SubprocessError) as error:
         print(json.dumps(dict(error=type(error).__name__, message=str(error)), ensure_ascii=False), file=sys.stderr)
         return 1

@@ -33,6 +33,8 @@
 - `publish-status`: 저장된 발행 상태만 조회. Git·GitHub 호출 없음.
 - 기존 `status`: publisher 상태도 함께 출력한다.
 
+`run`·`scheduled`·`publish-retry`는 반환 결과의 collection/sync/queue 단계가 `failed`이면 상태 JSON을 출력한 뒤 종료 코드 1을 반환한다. systemd의 실행 성공과 수집 실패가 어긋나지 않게 하기 위한 것으로, 차단 기준과 재시도 정책은 바꾸지 않는다. workflow 접수·실행 대기만으로는 이 실패 종료 조건에 해당하지 않으며, `publish-status` 조회 자체는 저장된 실패 상태를 읽어도 성공 종료한다. DB 반영 완료 여부는 계속 receipt로 확인한다.
+
 GitHub CLI `gh`가 실행 환경에 설치·인증돼 있어야 한다. fine-grained token은 대상 private repository의 Actions write(호출·run/artifact 조회)와 Contents read(revision 조상 비교)가 필요하다. Git sync 자격정보는 기존 방식이고 DB ingest key는 로컬에 추가하지 않는다. workflow의 `AI_USAGE_INGEST_KEY`, `AI_USAGE_INGEST_URL`, `AI_USAGE_EXPORTER_REF`는 KB 소유다. 토큰을 설정 JSON/인수/로그에 기록하지 않는다. [공식 dispatch 권한](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event), [run 조회](https://docs.github.com/en/rest/actions/workflow-runs), [artifact 조회](https://docs.github.com/en/rest/actions/artifacts).
 
 ## 요청·재시도와 완료 근거
