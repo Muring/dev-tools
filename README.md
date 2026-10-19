@@ -124,11 +124,10 @@ Claude에서는 `/명령`, Codex에서는 `$명령`으로 같은 원본을 호�
 | `storage-maintenance` | Windows·WSL 읽기 전용 저장공간 진단, 일별·주별 비교, 보존 정책과 정확한 경로 승인에 따른 정리 계획·실행 |
 | `wait-deploy` | 기존 GitHub 배포·CI 상태를 backoff로 대기. push나 배포 실행 없음 |
 | `session-brief` | 결정·검증·남은 일과 worktree 상태를 짧게 인계 |
-| `shopify-pdp` | PDP 제작 도구. 변경 섹션 검증과 짧은 결과 출력 지원 |
 
 `storage-maintenance`는 `python3 skills/storage-maintenance/scripts/storage.py scan`으로 읽기 전용 진단을 시작합니다. Windows는 네이티브 메타데이터 수집, Linux는 `du -x`·`df`를 쓰며 미상·부분 결과와 VHD/내부 사용량을 구분합니다. 승인된 WSL root 읽기 전용 프로세스 검사와 Yarn v6 내부 bin 링크 검증을 지원합니다. Ubuntu 임시 산출물과 Windows 사용자 Temp는 소유 작업 완료·재생성 가능성·사용 상태·명시적 보존 목록을 검증합니다. `plan`으로 정확한 정리 후보를 검토하고 `apply`는 기본 dry-run입니다. 실제 삭제는 별도 승인 파일과 `--execute`가 필요하며 앱 종료·WSL 압축·예약 활성화는 자동 수행하지 않습니다. [설정·보존 정책·승인 형식](skills/storage-maintenance/references/operations.md)을 참고하세요.
 
-스크립트는 각 `skills/<명령>/scripts/`에 있고 스킬 경로를 기준으로 실행합니다. `verify-changes`는 같은 콘텐츠 버전의 `session-brief` 조회 모듈을 사용합니다. 실행기는 Python 3.10+와 Git이 있는 Linux/WSL 환경용이며 배포 대기는 인증된 `gh`, PDP 브라우저 검증은 기존 `pdp setup` 런타임이 필요합니다.
+스크립트는 각 `skills/<명령>/scripts/`에 있고 스킬 경로를 기준으로 실행합니다. `verify-changes`는 같은 콘텐츠 버전의 `session-brief` 조회 모듈을 사용합니다. 실행기는 Python 3.10+와 Git이 있는 Linux/WSL 환경용이며 배포 대기는 인증된 `gh`가 필요합니다.
 
 ```bash
 # checkout에서 실행하는 예. 명령 파일 위치와 대상 프로젝트를 구분합니다.
@@ -144,8 +143,6 @@ python3 /path/to/dev-bootstrap/skills/wait-deploy/scripts/wait_deploy.py --conte
 최근 7일의 Codex만 분석하려면 `--tool codex --days 7 --diagnostics --by project,model,day,session --json`을 사용합니다. 진단은 입력 크기, 큰 도구 출력의 문자 수, 잘림 표시, 동일 호출 반복을 집계하며 명령·출력 원문은 보고서에 포함하지 않습니다. 반복 호출에는 필요한 대기·재검증도 포함되므로 자동으로 낭비나 절감률로 해석하지 않습니다.
 
 `verify-changes`는 기본적으로 실행 계획만 보여주고 `--run`에서 설정의 argv를 실행합니다. `--all`도 등록된 회귀 검사 전체를 뜻하며 전체 코드 감사가 아닙니다. 기존 통과 결과를 캐시하지 않습니다. UI 검증은 대상 URL·worktree·인증 상태를 맞추고 기존 Orca 탭을 우선 사용합니다.
-
-PDP는 `pdp verify --project DIR --sections 2,5 --summary`로 부분 반복 검증을 할 수 있습니다. 부분 결과는 별도 경로에 기록하며 최종 전달 전에는 `--sections` 없이 전체 검증합니다. `pdp audit --project DIR --summary`는 전체 구조 검사입니다. 로컬 PDP 도구를 업데이트된 공용 원본으로 옮길 때는 기존 실제 디렉터리를 보관한 뒤 링크를 바꾸고, 서로 다른 원본을 덮어쓰지 않습니다.
 
 ## 기본 구성과 Recommended
 
