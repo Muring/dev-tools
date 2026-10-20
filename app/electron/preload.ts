@@ -14,5 +14,11 @@ contextBridge.exposeInMainWorld('bootstrap', {
   login: (tool: string) => ipcRenderer.invoke('login', tool),
   shutdown: () => ipcRenderer.invoke('shutdown'),
   reboot: () => ipcRenderer.invoke('reboot'),
+  discoverSetup: (skill: string) => ipcRenderer.invoke('setup-discover', skill),
+  previewSetup: (request: unknown) => ipcRenderer.invoke('setup-preview', request),
+  executeSetup: (id: string, credentials: unknown = {}) =>
+    ipcRenderer.invoke('setup-execute', id, credentials),
+  openSetupArtifact: (id: string, index: number) => ipcRenderer.invoke('setup-artifact', id, index),
+  setupGuide: (skill: string) => ipcRenderer.invoke('setup-guide', skill),
   logs: () => ipcRenderer.invoke('logs'),
 });

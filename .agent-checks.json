@@ -1,6 +1,9 @@
 {
   "version": 1,
   "checks": [
+    {"name":"blog-connection","command":["python3","tests/blog-connection.py","-q"],"paths":["linux/blog_connection.mjs","linux/skill_setup.py","tests/blog-connection.py"],"timeout":60},
+    {"name":"skill-setup","command":["python3","tests/skill-setup.py","-q"],"paths":["linux/skill_setup.py","linux/blog_credentials.py","linux/skill_readiness.py","linux/skill-setup-launch.sh","tests/skill-setup.py"],"timeout":120},
+    {"name":"skill-readiness","command":["python3","tests/skill-readiness.py","-q"],"paths":["linux/skill_readiness.py","linux/environment_probe.py","tests/skill-readiness.py"],"timeout":120},
     {"name":"usage-knowledge-reviews","command":["python3","tests/usage-knowledge-reviews.py","-q"],"paths":["skills/usage-report/*","tests/usage-knowledge-reviews.py","tests/fixtures/knowledge-reviews.json"],"timeout":120},
     {"name":"usage-knowledge","command":["python3","tests/usage-knowledge.py","-q"],"paths":["skills/usage-report/*","tests/usage-knowledge.py","tests/fixtures/ai-task-activity.json"],"timeout":120},
     {"name":"usage-activity","command":["python3","tests/usage-activity.py","-q"],"paths":["skills/usage-report/*","tests/usage-activity.py","tests/fixtures/ai-task-activity.json"],"timeout":120},

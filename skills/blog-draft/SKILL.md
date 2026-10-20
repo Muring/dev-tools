@@ -4,6 +4,9 @@ description: 지금까지의 대화와 프로젝트 이력을 재료로 mublog �
 allowed-tools: Bash, Read, Glob, Grep, Write
 ---
 
+처음 사용하거나 실행환경이 없으면 [초기 설정 가이드](references/setup.md)의 준비 순서와 완료 기준을 확인한다.
+
+
 ## Context
 
 Claude Code에서는 `/blog-draft`, Codex에서는 `$blog-draft`로 호출한다.
@@ -23,7 +26,7 @@ git log --oneline -60
 Codex에서는 `$ARGUMENTS`를 자동 치환 변수 대신 호출과 함께 전달한 입력으로 해석한다.
 아무것도 없으면 slug 도 주제도 직접 정한다.
 
-**블로그 저장소 경로**는 `$MUBLOG_DIR`, 없으면 `$HOME/dev/mublog` 다.
+**블로그 저장소 경로**는 `$MUBLOG_DIR`, 없으면 `~/.config/dev-bootstrap/skill-setup.json`의 `blog-draft.path`, 둘 다 없으면 `$HOME/dev/mublog`다. 저장된 경로를 사용하면 이번 실행의 `MUBLOG_DIR`로 전달한다. 설정 JSON을 셸 코드로 source하지 않는다.
 아래에서 `$MUBLOG` 로 줄여 쓴다. 없으면 거기서 멈추고 경로를 묻는다.
 
 셸이 zsh 다. `src/app/[slug]/` 처럼 대괄호가 든 경로는 **큰따옴표로 감싼다** —

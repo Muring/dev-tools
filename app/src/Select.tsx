@@ -66,12 +66,11 @@ export function Select({
     };
     document.addEventListener('pointerdown', outside);
     window.addEventListener('resize', close);
-    const content = trigger.current?.closest('.page-content');
-    content?.addEventListener('scroll', moved);
+    document.addEventListener('scroll', moved, true);
     return () => {
       document.removeEventListener('pointerdown', outside);
       window.removeEventListener('resize', close);
-      content?.removeEventListener('scroll', moved);
+      document.removeEventListener('scroll', moved, true);
     };
   }, [open]);
   useEffect(() => {

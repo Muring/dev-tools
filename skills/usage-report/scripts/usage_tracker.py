@@ -537,7 +537,7 @@ def main():
     p = sub.add_parser('run'); p.add_argument('--sync', action='store_true')
     p = sub.add_parser('report'); p.add_argument('--preview', action='store_true'); p.add_argument('--year', type=int)
     p = sub.add_parser('approve'); p.add_argument('--fingerprint', required=True)
-    sub.add_parser('status'); sub.add_parser('sync'); sub.add_parser('scheduled')
+    sub.add_parser('status'); sub.add_parser('sync'); sub.add_parser('scheduled'); sub.add_parser('collect-local')
     sub.add_parser('publish-retry'); sub.add_parser('publish-status')
     p = sub.add_parser('kb-selection'); p.add_argument('--document', required=True); p.add_argument('--task', required=True); p.add_argument('--project', required=True)
     p = sub.add_parser('kb-search'); p.add_argument('--handle', required=True); p.add_argument('query')
@@ -572,6 +572,8 @@ def main():
                     raise ValueError('Git publishing is not enabled in configuration')
                 elif args.command=='publish-status':
                     result=read(Path(config['state'])/'git-publish-status.json',dict(state='not_run'))
+                elif args.command == 'collect-local':
+                    result = run(config, False)
                 elif args.command == 'run':
                     result = run(config, args.sync)
                 elif args.command == 'scheduled':

@@ -6,6 +6,7 @@ from pathlib import Path
 import pwd
 import subprocess
 from lib.content import ContentStore
+from skill_readiness import probe
 
 
 def output(args):
@@ -62,5 +63,5 @@ print(json.dumps(dict(osId=os_id, contentCommit=content_commit, users=[u.pw_name
                      gitEmail=settings['gitEmail'],
                      gitBranch=settings['gitBranch'],
                      timezone=Path('/etc/timezone').read_text().strip() if Path('/etc/timezone').exists() else '',
-                     auth=auth, tools=tools)))
+                     auth=auth, tools=tools, skillReadiness=probe())))
 report('Ubuntu 검사 완료')

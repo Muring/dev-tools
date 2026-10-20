@@ -3,6 +3,9 @@ name: storage-maintenance
 description: Windows·WSL 저장공간을 읽기 전용으로 진단하고 스냅샷 비교와 보존 정책에 따른 정리 후보를 만든다. 실제 삭제·앱 종료·WSL 압축·예약 활성화는 각각 별도 승인이 필요하다.
 ---
 
+처음 사용하거나 실행환경이 없으면 [초기 설정 가이드](references/setup.md)의 준비 순서와 완료 기준을 확인한다.
+
+
 Claude `/storage-maintenance`, Codex `$storage-maintenance`. `$ARGUMENTS`는 호출과 함께 전달한 대상·모드로 해석한다. 명령 원본 저장소와 진단 대상은 별개다.
 
 기본은 `scripts/storage.py scan`이다. 구현·설정·과거 측정 자료는 필요한 부분만 읽는다. Windows 트리를 WSL의 Python·du로 재귀 탐색하지 않는다. 동봉 PowerShell 5.1 네이티브 수집기에 정확한 Windows 경로를 전달하고 요약 JSON만 받는다. Linux는 `du -x`·`df`를 사용한다. ACL 실패·시간 초과·없는 경로는 0으로 바꾸지 않는다.

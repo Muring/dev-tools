@@ -694,4 +694,21 @@ class GitTests(unittest.TestCase):
         result=tracker.scheduler(self.cfg,self.root/'config',False)
         self.assertFalse(result['enabled'])
 
+class LocalOnlyCollectionTests(unittest.TestCase):
+    def test_local_collection_bypasses_publisher_and_sync(self):
+        from contextlib import nullcontext, redirect_stdout
+        import io
+        cfg = {'state': '/unused', 'publisher': {'mode': 'git-workflow'}}
+        with patch.object(sys, 'argv', ['usage_tracker.py', 'collect-local']), \
+             patch.object(tracker, 'read', return_value=cfg), \
+             patch.object(tracker, 'lock', return_value=nullcontext()), \
+             patch.object(tracker, 'run', return_value={'state': 'ok'}) as run, \
+             patch.object(tracker, 'sync') as sync, \
+             patch('usage_git_publish.daily') as daily, redirect_stdout(io.StringIO()):
+            self.assertEqual(tracker.main(), 0)
+        run.assert_called_once_with(cfg, False)
+        sync.assert_not_called()
+        daily.assert_not_called()
+
+
 if __name__=='__main__':unittest.main()

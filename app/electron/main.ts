@@ -7,6 +7,7 @@ import { StringDecoder } from 'node:string_decoder';
 import { OperationTracker, ProgressUpdate } from './progress';
 import { downloadOrca } from './orca';
 import { decodeNativeOutput } from './encoding';
+import { setupSkill, SetupResult, blogCredentials } from './skill-setup-model';
 import {
   Config,
   ContentPreview,
@@ -50,10 +51,23 @@ async function atomic(file: string, value: unknown) {
 async function persist() {
   await atomic(path.join(stateDir, 'state.json'), { config, phase, currentEvents });
 }
-async function capture(executable: string, args: string[], timeout = 30000): Promise<string> {
+async function capture(
+  executable: string,
+  args: string[],
+  timeout = 30000,
+  acceptedCodes = [0],
+  input?: string,
+): Promise<string> {
   const expectedOperation = operation.value;
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, { windowsHide: true, shell: false });
+    if (input !== undefined) {
+      child.stdin.on('error', () => {
+        clearTimeout(timer);
+        reject(Error('준비 입력을 전달하지 못했습니다. 다시 시도하세요.'));
+      });
+      child.stdin.end(input);
+    }
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     const timer = setTimeout(() => {
@@ -81,14 +95,16 @@ async function capture(executable: string, args: string[], timeout = 30000): Pro
     });
     child.on('close', code => {
       clearTimeout(timer);
-      code === 0
+      code !== null && acceptedCodes.includes(code)
         ? resolve(decodeNativeOutput(Buffer.concat(stdout)))
         : reject(
             Error(
-              decodeNativeOutput(Buffer.concat(stderr))
-                .split('\n')
-                .filter(line => !line.startsWith('BOOTSTRAP_PROGRESS '))
-                .join('\n') || `명령 실패 (${code})`,
+              input !== undefined
+                ? '실행환경 준비 입력 처리에 실패했습니다.'
+                : decodeNativeOutput(Buffer.concat(stderr))
+                    .split('\n')
+                    .filter(line => !line.startsWith('BOOTSTRAP_PROGRESS '))
+                    .join('\n') || `명령 실패 (${code})`,
             ),
           );
     });
@@ -439,6 +455,33 @@ async function run(step?: string) {
   return snapshot();
 }
 
+// Plans and artifacts are bound to the inspected Ubuntu account, never arbitrary renderer paths.
+const setupPlans = new Map<string, string>();
+const setupResults = new Map<string, { target: string; result: SetupResult }>();
+function setupTarget() {
+  return JSON.stringify([config.distro, config.user]);
+}
+async function setupCommand(args: string[], input?: string) {
+  if (
+    process.platform !== 'win32' ||
+    inspection?.linux?.osId !== 'ubuntu' ||
+    inspection.linux.user !== config.user
+  )
+    throw Error('대상 Ubuntu와 개발 계정을 먼저 확인하세요.');
+  const script = await linuxPath(path.join(assets, 'linux/skill-setup-launch.sh'));
+  const value = JSON.parse(
+    await capture(
+      'wsl.exe',
+      ['-d', config.distro, '-u', config.user, '--exec', 'bash', script, ...args],
+      30 * 60 * 1000,
+      [0, 1],
+      input,
+    ),
+  );
+  if (value.error) throw Error(value.error);
+  return value;
+}
+
 // The downloaded portable EXE carries Mark-of-the-Web, so SmartScreen and the "open file" warning ask on
 // every launch. Once the user has chosen to run it, drop the mark so later launches (e.g. after the WSL
 // reboot) start without the prompt. The stream can be removed while the launcher is still running.
@@ -505,8 +548,79 @@ async function main() {
       });
     }
   });
+  ipcMain.handle('setup-discover', (_event, skill: unknown) =>
+    guarded('실행환경 탐색', async () => {
+      return setupCommand(['discover', '--skill', setupSkill(skill)]);
+    }),
+  );
+  ipcMain.handle('setup-preview', (_event, request: unknown) =>
+    guarded('실행환경 변경 확인', async () => {
+      if (!request || typeof request !== 'object' || JSON.stringify(request).length > 65536)
+        throw Error('준비 옵션을 확인하세요.');
+      setupSkill((request as { skill?: unknown }).skill);
+      const plan = await setupCommand(['preview', '--request-stdin'], JSON.stringify(request));
+      setupPlans.set(plan.id, setupTarget());
+      return plan;
+    }),
+  );
+  ipcMain.handle('setup-execute', (_event, id: unknown, input: unknown = {}) =>
+    guarded('스킬 실행환경 준비', async () => {
+      if (typeof id !== 'string' || setupPlans.get(id) !== setupTarget())
+        throw Error('대상 계정의 준비 내용을 다시 확인하세요.');
+      const credentials = blogCredentials(input);
+      setupPlans.delete(id);
+      const result = (await setupCommand(
+        ['execute', '--id', id, '--credentials-stdin'],
+        JSON.stringify(credentials),
+      )) as SetupResult;
+      setupResults.set(id, { target: setupTarget(), result });
+      if (inspection?.linux) {
+        try {
+          inspection.linux.skillReadiness = await setupCommand(['status']);
+        } catch {
+          inspection.linux.skillReadiness = undefined;
+        }
+      }
+      if (result.status !== 'completed') operation.finish(result.status === 'failed' ? 'failed' : 'waiting');
+      return result;
+    }),
+  );
+  ipcMain.handle('setup-artifact', async (_event, id: unknown, index: unknown) => {
+    if (typeof id !== 'string' || typeof index !== 'number' || !Number.isInteger(index))
+      throw Error('준비 결과를 다시 확인하세요.');
+    const saved = setupResults.get(id);
+    const artifact = saved?.result.artifacts[index];
+    if (
+      !saved ||
+      saved.target !== setupTarget() ||
+      !artifact ||
+      !/\.(?:html|json|example)$/.test(artifact.path)
+    )
+      throw Error('현재 계정의 확인된 준비 결과만 열 수 있습니다.');
+    const windowsPath = (
+      await capture('wsl.exe', [
+        '-d',
+        config.distro,
+        '-u',
+        config.user,
+        '--exec',
+        'wslpath',
+        '-w',
+        artifact.path,
+      ])
+    ).trim();
+    const error = await shell.openPath(windowsPath);
+    if (error) throw Error('파일을 열지 못했습니다. 표시된 Ubuntu 경로에서 확인하세요.');
+  });
   ipcMain.handle('snapshot', snapshot);
   ipcMain.handle('catalog', () => catalog);
+  ipcMain.handle('setup-guide', async (_event, skill: unknown) => {
+    if (typeof skill !== 'string' || !['blog-draft', 'usage-report', 'storage-maintenance'].includes(skill))
+      throw Error('지원하지 않는 초기 설정 가이드입니다.');
+    await shell.openExternal(
+      `https://github.com/Muring/dev-tools/blob/main/skills/${skill}/references/setup.md`,
+    );
+  });
   ipcMain.handle('save', async (_event, value) => {
     if (busy) throw Error('설치 중에는 구성을 변경할 수 없습니다.');
     const next = validate(value, catalog);

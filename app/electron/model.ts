@@ -39,7 +39,12 @@ export interface InstallEvent {
   message: string;
   time: number;
 }
+export interface SkillReadiness {
+  checkedAt: string;
+  checks: Record<string, boolean | null>;
+}
 export interface LinuxInfo {
+  skillReadiness?: SkillReadiness;
   osId: string;
   contentCommit?: string;
   users: string[];

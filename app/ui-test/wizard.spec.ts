@@ -95,6 +95,65 @@ test.beforeEach(async ({ page, startupFailure }) => {
         shutdown: async () => structuredClone(state),
         reboot: async () => {},
         logs: async () => {},
+        discoverSetup: async (skill: string) => ({
+          skill,
+          path: '/home/muring/dev/mublog',
+          blogs: skill === 'blog-draft' ? ['/home/muring/dev/mublog', '/home/muring/dev/other-blog'] : [],
+          roots: [],
+          projects:
+            skill === 'usage-report'
+              ? [
+                  { path: '/home/muring/dev/new-project', alias: 'new-project' },
+                  { path: '/home/muring/dev/mublog', alias: 'muring/mublog' },
+                ]
+              : [],
+          targets: [{ platform: 'linux', path: '/tmp', kind: 'directory' }],
+          preserve: [
+            '/home/muring/dev',
+            '/home/muring/.codex',
+            '/home/muring/.claude',
+            '/home/muring/.local/share',
+          ],
+          trackingConfigured: false,
+          publisherConfigured: skill === 'usage-report',
+          trackingConfig: '/home/muring/.config/ai-workflow/tracking.json',
+        }),
+        previewSetup: async (request: any) => {
+          (window as any).setupRequest = request;
+          return { id: 'preview-plan', request, actions: ['선택한 환경 준비'], blockers: [] };
+        },
+        executeSetup: async (id: string, credentials: any) => {
+          (window as any).setupCredentialKeys = Object.keys(credentials || {});
+          (window as any).setupExecuted = id;
+          return {
+            id,
+            skill: (window as any).setupRequest.skill,
+            status: (window as any).setupRequest.skill === 'blog-draft' ? 'waiting' : 'completed',
+            ...((window as any).setupRequest.skill === 'usage-report' &&
+            (window as any).setupRequest.initialize
+              ? { fingerprint: 'a'.repeat(64) }
+              : {}),
+            message: '설정 저장 완료. 연결 검사에서 확인할 항목이 있습니다.',
+            checks:
+              (window as any).setupRequest.skill === 'blog-draft'
+                ? [
+                    { label: 'DB 연결·읽기', status: 'connected', message: 'SELECT 1 확인' },
+                    { label: '이미지 버킷 접근', status: 'failed', message: '버킷과 인증값을 확인하세요.' },
+                  ]
+                : [],
+            steps: [{ label: '블로그 경로 저장', status: 'completed' }],
+            artifacts:
+              (window as any).setupRequest.skill === 'storage-maintenance'
+                ? [{ label: '진단 결과 (JSON)', path: '/tmp/snapshot.json' }]
+                : [],
+          };
+        },
+        openSetupArtifact: async (id: string, index: number) => {
+          (window as any).openedArtifact = { id, index };
+        },
+        setupGuide: async (skill: string) => {
+          (window as any).openedSetupGuide = skill;
+        },
       };
       if (startupFailure) {
         const w = window as any;
@@ -184,6 +243,7 @@ test('recommended choices preserve existing config and dependency deselection ca
   await expect(page.getByRole('checkbox', { name: 'Orca 스킬 연결', exact: false })).not.toBeChecked();
 });
 test('review, progress, authentication, and incomplete summary are separate', async ({ page }) => {
+  test.setTimeout(90_000);
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(String(e)));
   await page.getByRole('button', { name: '설치 구성 선택 →' }).click();
@@ -207,6 +267,286 @@ test('review, progress, authentication, and incomplete summary are separate', as
   await page.getByRole('button', { name: 'KB 연결 재시도' }).click();
   await page.getByRole('button', { name: '설치 완료 확인' }).click();
   await expect(page.getByRole('heading', { name: '선택한 도구를 준비했습니다' })).toBeVisible();
+  const setup = page.getByRole('region', { name: '스킬 실행환경 준비' });
+  await expect(setup.getByRole('heading', { name: '준비할 스킬 선택' })).toBeVisible();
+  await expect(setup.locator('.setup-wizard')).toHaveCount(0);
+  await page.setViewportSize({ width: 900, height: 650 });
+  await setup.getByRole('button', { name: '블로그 초안 준비하기' }).click();
+  await expect(setup.locator('.setup-input')).toBeFocused();
+  await expect(setup.locator('.setup-input')).toHaveCSS('outline-style', 'none');
+  const exitSetup = setup.getByRole('button', { name: /준비 취소 · 스킬 선택|스킬 선택으로 돌아가기/ });
+  const footer = setup.locator('.setup-workspace-actions');
+  let setupCapture = 0;
+  async function assertFixedControls() {
+    await expect(exitSetup).toBeInViewport();
+    await expect(setup.locator('.setup-wizard-body')).toHaveCSS('padding-bottom', '2px');
+    for (const panel of await setup.locator('.setup-plan, .setup-result').all()) {
+      await expect(panel).toHaveCSS('margin-top', '0px');
+      await expect(panel).toHaveCSS('outline-style', 'none');
+    }
+    await page.screenshot({ path: test.info().outputPath(`setup-stage-${++setupCapture}.png`) });
+    await expect(footer).toBeInViewport();
+    const before = await footer.boundingBox();
+    await setup.locator('.setup-wizard-body').evaluate(element => {
+      element.scrollTop = element.scrollHeight;
+    });
+    expect((await footer.boundingBox())!.y).toBe(before!.y);
+    expect(await setup.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await expect(exitSetup).toBeInViewport();
+  }
+  await assertFixedControls();
+  await setup.locator('.setup-clone > summary').click();
+  await setup
+    .getByLabel('새로 받을 GitHub 저장소 주소 (기존 폴더가 없을 때)')
+    .fill('https://github.com/example/blog.git');
+  await setup.getByRole('button', { name: '내 환경에서 경로 찾기' }).click();
+  await expect(setup.locator('.setup-clone')).toHaveCount(0);
+  await expect(
+    setup.getByText('기존 블로그 저장소를 확인했습니다. 새로 내려받을 필요가 없습니다.'),
+  ).toBeVisible();
+  const pathInput = setup.getByLabel('블로그 저장소 경로', { exact: true });
+  await setup.getByRole('button', { name: '/home/muring/dev/other-blog 사용', exact: true }).click();
+  await expect(pathInput).toHaveValue('/home/muring/dev/other-blog');
+  await expect(setup.getByRole('status')).toHaveText('선택 완료');
+  await expect(setup.getByText('발견한 블로그 저장소', { exact: true })).toHaveCount(0);
+  await expect(pathInput).toBeFocused();
+  await pathInput.pressSequentially('-edited');
+  await expect(pathInput).toHaveValue('/home/muring/dev/other-blog-edited');
+  await expect(pathInput).toBeFocused();
+  await setup.locator('.setup-clone > summary').click();
+  await expect(setup.getByLabel('새로 받을 GitHub 저장소 주소 (기존 폴더가 없을 때)')).toHaveValue('');
+  await expect(setup.getByRole('status')).toHaveCount(0);
+  await setup.getByRole('button', { name: '내 환경에서 경로 찾기' }).click();
+  await expect(setup.getByText('발견한 블로그 저장소', { exact: true })).toBeVisible();
+  await expect(setup.getByRole('status')).toHaveCount(0);
+  await setup.getByRole('button', { name: '/home/muring/dev/mublog 사용', exact: true }).click();
+  await page.setViewportSize({ width: 1100, height: 900 });
+  expect(await setup.locator('.setup-wizard-body').evaluate(el => el.scrollHeight <= el.clientHeight)).toBe(
+    true,
+  );
+  await page.setViewportSize({ width: 900, height: 650 });
+  await pathInput.focus();
+  await expect(pathInput).toHaveCSS('outline-offset', '0px');
+  await expect(pathInput).toHaveCSS('outline-width', '2px');
+  await page.keyboard.press('Tab');
+  await expect(pathInput).not.toBeFocused();
+  await expect(setup.getByLabel('블로그 저장소 경로', { exact: true })).toHaveValue(
+    '/home/muring/dev/mublog',
+  );
+  await setup.locator('.setup-readiness > summary').click();
+  await setup.getByRole('button', { name: '블로그 초안 전체 가이드 열기' }).click();
+  expect(await page.evaluate(() => (window as any).openedSetupGuide)).toBe('blog-draft');
+  await setup.locator('.setup-readiness > summary').click();
+  await setup.getByLabel('블로그 실행에 필요한 패키지 설치').check();
+  await setup.getByRole('button', { name: '인증 설정으로 다음' }).click();
+  await expect(setup.getByLabel('블로그 저장소 경로', { exact: true })).toHaveCount(0);
+  const secret = setup.getByLabel('Supabase 서버용 secret 키 (SUPABASE_SECRET_KEY)');
+  await expect(secret).toHaveAttribute('type', 'password');
+  await expect(secret).toHaveAccessibleDescription(/Settings → API Keys/);
+  await secret.fill('sb_secret_test_ui_only');
+  await assertFixedControls();
+  await page.screenshot({ path: test.info().outputPath('setup-credentials-900.png') });
+  await setup.getByRole('button', { name: '준비할 변경 내용 확인' }).click();
+  await expect(setup.getByRole('region', { name: '실행환경 변경 내용' })).toBeFocused();
+  await assertFixedControls();
+  await expect(setup.getByRole('button', { name: '확인한 환경 준비 실행' })).toBeDisabled();
+  expect(await page.evaluate(() => JSON.stringify((window as any).setupRequest))).not.toContain(
+    'sb_secret_test_ui_only',
+  );
+  await setup.getByRole('button', { name: '입력 수정', exact: true }).click();
+  await setup.getByRole('button', { name: '저장소로 이전' }).click();
+  await setup.getByLabel('블로그 저장소 경로', { exact: true }).fill('/home/muring/dev/other-blog');
+  await setup.getByRole('button', { name: '인증 설정으로 다음' }).click();
+  await expect(secret).toHaveValue('');
+  await secret.fill('sb_secret_test_ui_only');
+  await setup.getByRole('button', { name: '준비할 변경 내용 확인' }).click();
+  await setup.getByLabel('위 대상과 변경 내용을 확인했습니다.').check();
+  await setup.getByRole('button', { name: '확인한 환경 준비 실행' }).click();
+  await expect(setup.locator('.setup-result')).toHaveClass(/setup-result-failed/);
+  await expect(setup.getByText('DB 연결·읽기 · 연결 확인됨')).toBeVisible();
+  await expect(setup.getByText('이미지 버킷 접근 · 연결 확인 실패')).toBeVisible();
+  await assertFixedControls();
+  await setup.getByRole('button', { name: '인증값 수정 · 이미지 버킷 접근' }).click();
+  await expect(secret).toHaveValue('');
+  await expect(setup.getByLabel('DB 연결 주소 (DATABASE_URL)')).toBeDisabled();
+  await expect(setup.getByRole('button', { name: '인증값 교체 내용 확인' })).toBeDisabled();
+  await secret.fill('sb_secret_replacement_test');
+  const consent = setup.getByLabel('입력한 항목의 기존 인증값을 새 값으로 교체하는 데 동의합니다.');
+  await consent.check();
+  await secret.fill('sb_secret_replacement_changed');
+  await expect(consent).not.toBeChecked();
+  await consent.check();
+  await setup.getByRole('button', { name: '인증값 교체 내용 확인' }).click();
+  expect(await page.evaluate(() => (window as any).setupRequest.replaceCredentialKeys)).toEqual([
+    'SUPABASE_SECRET_KEY',
+  ]);
+  await setup.getByLabel('위 대상과 변경 내용을 확인했습니다.').check();
+  await setup.getByRole('button', { name: '확인한 환경 준비 실행' }).click();
+  await exitSetup.click();
+  await expect(setup.locator('.setup-wizard')).toHaveCount(0);
+  // Cancellation during review must clear the draft and plan.
+  await setup.getByRole('button', { name: '블로그 초안 준비하기' }).click();
+  await setup.getByRole('button', { name: '인증 설정으로 다음' }).click();
+  await expect(secret).toHaveValue('');
+  await secret.fill('sb_secret_cancelled');
+  await setup.getByRole('button', { name: '준비할 변경 내용 확인' }).click();
+  await exitSetup.click();
+  await setup.getByRole('button', { name: '블로그 초안 준비하기' }).click();
+  await setup.getByRole('button', { name: '인증 설정으로 다음' }).click();
+  await expect(secret).toHaveValue('');
+  await expect(setup.locator('.setup-plan')).toHaveCount(0);
+  await exitSetup.click();
+  await setup.getByRole('button', { name: '사용량 분석 준비하기' }).click();
+  await setup.getByRole('button', { name: '내 환경에서 경로 찾기' }).click();
+  await setup.locator('.setup-optional > summary').click();
+  const publish = setup.getByLabel('동기화할 때 기존 블로그 발행 설정 사용 허용');
+  await expect(publish).toHaveCount(0);
+  await setup.getByLabel('사용량 기록을 Git 저장소에 지금 동기화').check();
+  await publish.check();
+  await setup.getByLabel('사용량 기록을 Git 저장소에 지금 동기화').uncheck();
+  await expect(publish).toHaveCount(0);
+  await setup.getByRole('button', { name: '준비할 변경 내용 확인' }).click();
+  expect(await page.evaluate(() => (window as any).setupRequest.allowPublish)).toBe(false);
+  await setup.getByRole('button', { name: '입력 수정', exact: true }).click();
+  await setup.getByLabel('사용량 자동 기록과 Git 동기화 켜기').check();
+  await expect(publish).not.toBeChecked();
+  await expect(setup.getByLabel('이 기기의 사용량 기록 설정 저장')).toBeChecked();
+  await setup.getByLabel('동기화할 때 기존 블로그 발행 설정 사용 허용').check();
+  await setup.locator('.setup-optional > summary').click();
+  await expect(setup.locator('.setup-optional > summary')).toContainText('2개 선택');
+  await assertFixedControls();
+  await setup.getByRole('button', { name: '준비할 변경 내용 확인' }).click();
+  expect(await page.evaluate(() => (window as any).setupRequest.schedule)).toBe(false);
+  await setup.getByLabel('위 대상과 변경 내용을 확인했습니다.').check();
+  await setup.getByRole('button', { name: '확인한 환경 준비 실행' }).click();
+  await expect(setup.locator('.setup-result')).toHaveClass(/setup-result-completed/);
+  await assertFixedControls();
+  await expect(setup.getByRole('button', { name: '자동 기록 시작할 변경 확인' })).toBeDisabled();
+  const template = setup.getByLabel('생성된 HTML을 열어 확인했고 이 보고서 양식을 승인합니다.');
+  await template.check();
+  await setup.getByRole('button', { name: '설정 수정', exact: true }).click();
+  await setup.getByLabel('KB 저장소 경로', { exact: true }).fill('/home/muring/dev/other-kb');
+  await expect(template).toHaveCount(0);
+  await setup.getByRole('button', { name: '준비할 변경 내용 확인' }).click();
+  await setup.getByLabel('위 대상과 변경 내용을 확인했습니다.').check();
+  await setup.getByRole('button', { name: '확인한 환경 준비 실행' }).click();
+  await template.check();
+  await setup.getByRole('button', { name: '자동 기록 시작할 변경 확인' }).click();
+  expect(await page.evaluate(() => (window as any).setupRequest.schedule)).toBe(true);
+  expect(await page.evaluate(() => (window as any).setupRequest.sync)).toBe(false);
+  await assertFixedControls();
+  await setup.getByLabel('위 대상과 변경 내용을 확인했습니다.').check();
+  await setup.getByRole('button', { name: '자동 기록 시작', exact: true }).click();
+  await expect(template).toHaveCount(0);
+  await exitSetup.click();
+  await setup.getByRole('button', { name: '저장공간 진단 준비하기' }).click();
+  await expect(setup.locator('textarea')).toHaveCount(0);
+  await setup.getByRole('button', { name: '준비할 변경 내용 확인' }).click();
+  expect(await page.evaluate(() => (window as any).setupRequest.targets)).toEqual([
+    { platform: 'linux', path: '/tmp', kind: 'directory' },
+  ]);
+  expect(await page.evaluate(() => (window as any).setupRequest.preserve)).toHaveLength(4);
+  await setup.getByRole('button', { name: '입력 수정', exact: true }).click();
+  await setup.locator('summary').filter({ hasText: '자동으로 찾은 진단 대상 확인' }).click();
+  await expect(setup.getByText('Ubuntu · /tmp', { exact: true })).toBeVisible();
+  await setup.getByRole('button', { name: '진단·보존 위치 직접 지정', exact: true }).click();
+  await setup.getByRole('button', { name: '/tmp 진단 제외', exact: true }).click();
+  await expect(setup.getByText('진단할 위치를 하나 이상 추가하세요.')).toBeVisible();
+  await setup.getByLabel('추가할 경로', { exact: true }).fill('relative/path');
+  await setup.getByRole('button', { name: '목록에 추가', exact: true }).click();
+  await expect(setup.getByText('Ubuntu 절대 경로를 입력하세요. 예: /home/me/data')).toBeVisible();
+  await setup.getByLabel('추가할 경로', { exact: true }).fill('/home/muring/data');
+  await setup.getByRole('button', { name: '목록에 추가', exact: true }).click();
+  await setup.getByRole('combobox', { name: '경로 환경', exact: true }).click();
+  await expect(setup.getByRole('combobox', { name: '경로 환경', exact: true })).toHaveCSS(
+    'outline-offset',
+    '-2px',
+  );
+  await expect(page.getByRole('listbox', { name: '경로 환경', exact: true })).toBeInViewport();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await expect(setup.getByRole('combobox', { name: '경로 환경', exact: true })).toContainText('Windows');
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await setup.getByLabel('추가할 경로', { exact: true }).fill('D:\\Cache');
+  await setup.getByRole('button', { name: '목록에 추가', exact: true }).click();
+  await setup.getByRole('combobox', { name: '추가할 목록', exact: true }).click();
+  await page.getByRole('option', { name: '보존할 위치', exact: true }).click();
+  await setup.getByLabel('추가할 경로', { exact: true }).fill('D:\\Important');
+  await setup.getByRole('button', { name: '목록에 추가', exact: true }).click();
+  await assertFixedControls();
+  await page.evaluate(() => {
+    const api = (window as any).bootstrap;
+    const preview = api.previewSetup;
+    (window as any).setupBlock = true;
+    api.previewSetup = async (request: any) => ({
+      ...(await preview(request)),
+      blockers: (window as any).setupBlock ? ['진단 도구를 준비하세요.'] : [],
+    });
+  });
+  await setup.getByRole('button', { name: '준비할 변경 내용 확인' }).click();
+  await expect(setup.locator('.setup-plan')).toHaveClass(/setup-plan-blocked/);
+  expect(await page.evaluate(() => (window as any).setupRequest.targets)).toEqual([
+    { platform: 'linux', path: '/home/muring/data', kind: 'directory' },
+    { platform: 'windows', path: 'D:\\Cache', kind: 'directory' },
+  ]);
+  expect(await page.evaluate(() => (window as any).setupRequest.preserve)).toHaveLength(5);
+  await expect(
+    setup.locator('.setup-plan').getByText('Windows · D:\\Important', { exact: true }),
+  ).toBeVisible();
+  await expect(setup.getByLabel('위 대상과 변경 내용을 확인했습니다.')).toBeDisabled();
+  await expect(setup.getByRole('button', { name: '확인한 환경 준비 실행' })).toBeDisabled();
+  await assertFixedControls();
+  await setup.getByRole('button', { name: '입력 수정', exact: true }).click();
+  await page.evaluate(() => {
+    (window as any).setupBlock = false;
+  });
+  await setup.getByRole('button', { name: '준비할 변경 내용 확인' }).click();
+  await expect(setup.locator('.setup-plan')).not.toHaveClass(/setup-plan-blocked/);
+  await expect(setup.getByLabel('위 대상과 변경 내용을 확인했습니다.')).not.toBeChecked();
+  await setup.getByLabel('위 대상과 변경 내용을 확인했습니다.').check();
+  await setup.getByRole('button', { name: '확인한 환경 준비 실행' }).click();
+  await assertFixedControls();
+  await expect(setup.locator('.setup-result')).toHaveClass(/setup-result-completed/);
+  await expect(setup.getByRole('button', { name: '스킬 선택으로 돌아가기', exact: true })).toBeVisible();
+  await setup.getByRole('button', { name: '진단 결과 (JSON) 열기', exact: true }).click();
+  expect(await page.evaluate(() => (window as any).openedArtifact)).toEqual({ id: 'preview-plan', index: 0 });
+  await expect(setup.locator('.setup-result')).toBeVisible();
+  await setup.getByRole('button', { name: '설정 수정', exact: true }).click();
+  await expect(setup.getByRole('button', { name: 'D:\\Cache 진단 제외', exact: true })).toBeVisible();
+  await expect(
+    setup.getByRole('button', { name: 'D:\\Important 추가 보존 취소', exact: true }),
+  ).toBeVisible();
+  await exitSetup.click();
+  await setup.getByRole('button', { name: '사용량 분석 준비하기' }).click();
+  await expect(setup.getByLabel('이 기기의 사용량 기록 설정 저장')).not.toBeChecked();
+  await expect(setup.locator('.setup-result, .setup-plan')).toHaveCount(0);
+  await setup.locator('.setup-optional > summary').click();
+  await setup.getByLabel('사용량 자동 기록과 Git 동기화 켜기').check();
+  for (const status of ['failed', 'missing']) {
+    await page.evaluate(status => {
+      (window as any).bootstrap.executeSetup = async () => ({
+        id: 'partial-result',
+        skill: 'usage-report',
+        status: 'completed',
+        fingerprint: 'b'.repeat(64),
+        steps: [],
+        artifacts: [],
+        checks: [{ label: '보고서 생성', status }],
+      });
+    }, status);
+    await setup.getByRole('button', { name: '준비할 변경 내용 확인' }).click();
+    await setup.getByLabel('위 대상과 변경 내용을 확인했습니다.').check();
+    await setup.getByRole('button', { name: '확인한 환경 준비 실행' }).click();
+    await expect(setup.locator('.setup-result')).toHaveClass(
+      new RegExp(`setup-result-${status === 'failed' ? 'failed' : 'waiting'}`),
+    );
+    await expect(setup.locator('.setup-result h4')).toContainText(
+      status === 'failed' ? '실패' : '추가 확인 필요',
+    );
+    await expect(setup.getByRole('button', { name: '자동 기록 시작할 변경 확인' })).toHaveCount(0);
+    await assertFixedControls();
+    await setup.getByRole('button', { name: '설정 수정', exact: true }).click();
+  }
   expect(errors).toEqual([]);
 });
 

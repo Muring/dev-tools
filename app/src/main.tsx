@@ -1,10 +1,20 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { version } from '../package.json';
 import { Config, Item, Snapshot, CONTENT_GROUPS, defaults, recommended, toggle } from '../electron/model';
 import '@fontsource-variable/noto-sans-kr';
 import './style.css';
 import { Select } from './Select';
 import { ProgressRail } from './ProgressRail';
+import { SkillSetup } from './SkillSetup';
+import type {
+  BlogCredentials,
+  SetupSkill,
+  SetupRequest,
+  SetupPlan,
+  SetupResult,
+  SetupDiscovery,
+} from '../electron/skill-setup-model';
 import type { Operation } from '../electron/progress';
 import { configurationKey, workflowAccess } from '../electron/workflow';
 
@@ -21,6 +31,11 @@ interface Bridge {
   shutdown(): Promise<Snapshot>;
   reboot(): Promise<void>;
   logs(): Promise<void>;
+  setupGuide(skill: string): Promise<void>;
+  discoverSetup(skill: SetupSkill): Promise<SetupDiscovery>;
+  previewSetup(request: SetupRequest): Promise<SetupPlan>;
+  executeSetup(id: string, credentials?: BlogCredentials): Promise<SetupResult>;
+  openSetupArtifact(id: string, index: number): Promise<void>;
   installOrca(): Promise<Snapshot>;
   previewContent(): Promise<Snapshot>;
   updateContent(): Promise<Snapshot>;
@@ -165,17 +180,18 @@ function App() {
   function update<K extends keyof Config>(key: K, value: Config[K]) {
     setConfig({ ...config!, [key]: value });
   }
-  async function action(work: () => Promise<unknown>, owner = page) {
+  async function action<T>(work: () => Promise<T>, owner = page, revealProgress = true) {
     setError('');
     setNotice('');
     setSnapshot(previous => (previous ? { ...previous, operation: undefined } : previous));
     ownerRef.current = owner;
     staleRef.current = snapshot?.operation?.startedAt;
-    setRailOpen(true);
+    setRailOpen(revealProgress);
     setWorking(true);
     try {
-      await work();
+      const result = await work();
       setSnapshot(await api.snapshot());
+      return result;
     } catch (e) {
       setError(String(e).replace(/^Error: /, ''));
     } finally {
@@ -320,7 +336,7 @@ function App() {
         <div className="aside-bottom">
           WINDOWS + UBUNTU
           <br />
-          <small>MuRing · 설치 마법사 0.1.16</small>
+          <small>MuRing · 설치 마법사 {version}</small>
         </div>
       </aside>
       <main>
@@ -812,6 +828,18 @@ function App() {
                   ))}
                 <p>계정 연결은 도구 설치와 별도로 확인합니다. 새 Ubuntu 터미널에서 개발을 시작하세요.</p>
               </section>
+              <SkillSetup
+                key={`${config.distro}/${config.user}`}
+                onOpen={() => setRailOpen(false)}
+                readiness={inspection?.linux?.skillReadiness}
+                discover={skill => action(() => api.discoverSetup(skill), 5, false)}
+                preview={request => action(() => api.previewSetup(request), 5, false)}
+                execute={(id, credentials) => action(() => api.executeSetup(id, credentials), 5, false)}
+                openArtifact={(id, index) => action(() => api.openSetupArtifact(id, index), 5, false)}
+                busy={busy}
+                refresh={() => action(inspect, 5, false)}
+                openGuide={skill => action(() => api.setupGuide(skill), 5, false)}
+              />
               <div className="actions">
                 <button disabled={busy} onClick={() => setPage(3)}>
                   설치 단계로 이동
