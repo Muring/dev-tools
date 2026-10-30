@@ -1,0 +1,24 @@
+<!doctype html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>스킬 실행환경 안내 미리보기</title></head><body><div id="preview"></div><script type="module">
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import {SkillSetup} from '/src/SkillSetup.tsx';
+import '/src/style.css';
+import '@fontsource-variable/noto-sans-kr';
+let previewRequest;
+const initial = {checkedAt: new Date().toISOString(),checks:{blogSkill:true,blogProject:false,blogDependencies:false,usageSkill:true,python:true,trackingConfig:false,storageSkill:true,storageTools:true,powershell:true}};
+function Preview(){
+ const [state,setState]=React.useState(initial);
+ return React.createElement('div',{className:'setup-preview-page',style:{height:'100vh',overflow:'auto',scrollbarGutter:'stable',padding:'24px',maxWidth:'1000px',margin:'auto'}},
+ React.createElement('h1',null,'설치 완료 · 스킬 실행환경 준비'),
+ React.createElement('p',null,'화면 확인용 예시 데이터입니다. 실제 PC를 검사하거나 설정을 변경하지 않습니다.'),
+ React.createElement('div',{className:'actions'},
+ React.createElement('button',{onClick:()=>setState(undefined)},'미확인 상태 보기'),
+ React.createElement('button',{onClick:()=>setState(initial)},'예시 확인 결과 보기')),
+ React.createElement(SkillSetup,{readiness:state,busy:false,refresh:()=>setState({...initial,checkedAt:new Date().toISOString()}),discover:async skill=>({skill,path:skill==='blog-draft'?'/home/me/dev/mublog':'/home/me/dev/muring-kb',blogs:skill==='blog-draft'?['/home/me/dev/mublog']:[],roots:[{tool:'Codex',path:'/home/me/.codex/sessions',exists:true},{tool:'Claude',path:'/home/me/.claude/projects',exists:false}],projects:[{path:'/home/me/dev/mublog',alias:'me/mublog'},{path:'/home/me/dev/new-project',alias:'new-project'}],targets:[{platform:'linux',path:'/home/me/.cache',kind:'directory'},{platform:'linux',path:'/tmp',kind:'directory'}],preserve:['/home/me/dev','/home/me/.codex','/home/me/.claude','/home/me/.local/share'],trackingConfig:'/home/me/.config/ai-workflow/tracking.json',trackingConfigured:!!state?.checks.trackingConfig,publisherConfigured:false}),
+preview:async request=>{previewRequest=request;return {id:'example-plan',request,actions:request.skill==='blog-draft'?['선택한 블로그 경로 저장',...(request.replaceCredentialKeys?.length?['기존 .env 인증값 교체: '+request.replaceCredentialKeys.join(', ')]:[]),...(request.installDependencies?['프로젝트 의존성 설치']:[]),'인증 항목 확인',...(request.credentialKeys?.length?['입력한 인증 항목을 .env에 저장 (예시)']:[]),'DB 접속·SELECT 1과 post-images 버킷 정보 조회 (읽기 전용)']:request.skill==='usage-report'?['외부 전송 없는 로컬 수집·보고서 생성',...(request.sync?['선택한 원격 동기화']:[])]:['선택 경로·보존 정책 저장','읽기 전용 진단 스냅샷 생성'],blockers:request.schedule&&(!request.fingerprint||!request.approveTemplate)?['먼저 HTML을 확인하고 fingerprint를 지정하세요.']:[]}},
+execute:async id=>{if(previewRequest.skill==='usage-report'&&previewRequest.initialize)setState(previous=>({...previous,checkedAt:new Date().toISOString(),checks:{...previous?.checks,trackingConfig:true}}));return ({id,skill:previewRequest.skill,status:previewRequest.skill==='blog-draft'&&!previewRequest.draft?'waiting':'completed',message:'미리보기 예시 결과입니다. 실제 작업은 실행하지 않았습니다.',steps:[{label:'선택한 환경 준비',status:'completed'}],checks:previewRequest.skill==='blog-draft'?[{label:'DB 연결·읽기',status:'connected',message:'예시: 접속과 SELECT 1 실행 확인. 글 등록 권한은 검사하지 않습니다.'},{label:'이미지 버킷 접근',status:'failed',message:'예시: post-images 버킷과 서버용 키를 확인하세요.'}]:undefined,artifacts:previewRequest.skill==='usage-report'&&previewRequest.initialize?[{label:'사용량 HTML 미리보기',path:'예시 보고서 · 실제 파일은 생성하지 않습니다.'}]:previewRequest.skill==='storage-maintenance'?[{label:'진단 결과 (JSON)',path:'예시 진단 결과 · 실제 파일은 생성하지 않습니다.'}]:[],...(previewRequest.skill==='usage-report'&&previewRequest.initialize?{fingerprint:'a'.repeat(64)}:{})});},
+openArtifact:async()=>{const dialog=document.createElement('dialog'); dialog.style.cssText='max-width: min(800px, 90vw); max-height: 80vh; overflow:auto; padding:24px; border:1px solid #9eafa6; border-radius:12px'; const title=document.createElement('h2'); title.textContent='진단·보고서 예시 (실제 측정 아님)'; const content=document.createElement('pre'); content.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;background:#f5f7f6;color:#20302e'; content.textContent=JSON.stringify({message:'화면 확인용 예시입니다. 실제 앱에서는 저장된 결과 파일을 엽니다.',targets:previewRequest.targets,preserve:previewRequest.preserve,state:'예시 완료'},null,2); const close=document.createElement('button');close.textContent='닫기';close.onclick=()=>dialog.close();dialog.onclose=()=>dialog.remove();dialog.append(title,content,close);document.body.append(dialog);dialog.showModal();},
+openGuide:id=>alert(id+' 초기 설정 가이드를 여는 버튼입니다. 미리보기에서는 외부 페이지를 열지 않습니다.')}));
+}
+createRoot(document.getElementById('preview')).render(React.createElement(Preview));
+</script></body></html>
